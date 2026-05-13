@@ -13,6 +13,8 @@ Flow:
     7. Return RiskListResponse                      (api.schemas)
 """
 
+import logging
+import time
 from datetime import datetime, timezone
 
 from src.api.dependencies import get_data_bundle, get_kev_catalog
@@ -24,13 +26,25 @@ from src.api.schemas import (
 )
 from src.scoring.risk_engine import ScoredRisk, get_top_n, score_all_risks
 
+logger = logging.getLogger(__name__)
+
 
 def run_pipeline(top_n: int = 5) -> RiskListResponse:
     """Run the full pipeline end-to-end and return the API response."""
+    t_start = time.perf_counter()
+    logger.info("pipeline start — top_n=%d", top_n)
+
     scored = _score_all()
     top = get_top_n(scored, n=top_n)
+    logger.info(
+        "top %d selected from %d scored risks (top score=%.2f)",
+        len(top), len(scored), top[0].score if top else 0.0,
+    )
 
     entries = [_to_risk_entry(r, rank=i + 1) for i, r in enumerate(top)]
+
+    elapsed = time.perf_counter() - t_start
+    logger.info("pipeline done — %d risks in %.2fs", len(entries), elapsed)
     return RiskListResponse(
         risks=entries,
         generated_at=datetime.now(timezone.utc).isoformat(),
@@ -44,31 +58,57 @@ def get_risk_by_id(risk_id: str) -> RiskEntry | None:
     Returns None if no risk matches. The rank reflects this risk's position in
     the full sorted list, not just within the top-5.
     """
+    t_start = time.perf_counter()
+    logger.info("lookup start — risk_id=%s", risk_id)
     scored = _score_all()
     for idx, r in enumerate(scored):
         if r.risk_id == risk_id:
-            return _to_risk_entry(r, rank=idx + 1)
+            entry = _to_risk_entry(r, rank=idx + 1)
+            elapsed = time.perf_counter() - t_start
+            logger.info(
+                "lookup hit — risk_id=%s rank=%d score=%.2f in %.2fs",
+                risk_id, idx + 1, r.score, elapsed,
+            )
+            return entry
+    logger.info("lookup miss — risk_id=%s not found", risk_id)
     return None
 
 
 def _score_all() -> list:
     """Load data + KEV, score every vulnerability, return sorted high-to-low."""
+    t = time.perf_counter()
     bundle = get_data_bundle()
     kev = get_kev_catalog()
-    return score_all_risks(
+    logger.info(
+        "data loaded — assets=%d vulns=%d threat_intel=%d services=%d kev=%d",
+        len(bundle.assets), len(bundle.vulnerabilities),
+        len(bundle.threat_intelligence), len(bundle.business_services),
+        len(kev) if kev is not None else 0,
+    )
+    scored = score_all_risks(
         vulnerabilities=bundle.vulnerabilities,
         assets=bundle.assets,
         threat_intel=bundle.threat_intelligence,
         business_services=bundle.business_services,
         kev_df=kev,
     )
+    logger.info("scored %d risks in %.2fs", len(scored), time.perf_counter() - t)
+    return scored
 
 
 def _to_risk_entry(r: ScoredRisk, rank: int) -> RiskEntry:
     ev = r.evidence
     bd = r.score_breakdown
 
+    logger.info(
+        "rank=%d cve=%s asset=%s score=%.2f — retrieving NIST controls",
+        rank, r.cve_id, ev.get("asset_name") or r.asset_id, r.score,
+    )
     nist_controls = _retrieve_nist_controls(r)
+    logger.info(
+        "rank=%d nist_controls=%s",
+        rank, [c.control_id for c in nist_controls] or "[]",
+    )
 
     threat_intel = None
     if bd["threat_intel"]["matched"]:
@@ -121,7 +161,8 @@ def _retrieve_nist_controls(r: ScoredRisk) -> list[NistControl]:
 
     try:
         results = retrieve_for_risk(query_risk)
-    except Exception:
+    except Exception as e:
+        logger.warning("NIST retrieval failed for %s: %s — returning []", r.cve_id, e)
         return []
 
     return [
@@ -144,7 +185,11 @@ def _explain(r: ScoredRisk, nist_controls: list[NistControl]) -> str:
     """
     try:
         return _llm_explanation(r, nist_controls)
-    except Exception:
+    except Exception as e:
+        logger.warning(
+            "LLM explanation failed for %s: %s — using rule-based fallback",
+            r.cve_id, e,
+        )
         return _rule_based_explanation(r)
 
 

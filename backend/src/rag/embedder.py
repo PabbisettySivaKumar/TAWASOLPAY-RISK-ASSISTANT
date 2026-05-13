@@ -21,7 +21,7 @@ def get_model() -> SentenceTransformer:
 def embed_texts(texts: list[str]) -> list[list[float]]:
     """Embed a batch of texts. Returns a list of vectors."""
     model = get_model()
-    vectors = model.encode(texts, normalize_embeddings=True)
+    vectors = model.encode(texts, normalize_embeddings=True, show_progress_bar=False)
     return vectors.tolist()
 
 

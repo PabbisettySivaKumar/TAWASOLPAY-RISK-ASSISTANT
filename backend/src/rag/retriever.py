@@ -5,9 +5,14 @@ Build a query string from the risk (CVE, asset type, threat actor, etc.),
 embed it, query ChromaDB, and return the top-k matching control chunks.
 """
 
+import logging
+import time
+
 from src.config import settings
 from src.rag.embedder import embed_query
 from src.rag.vector_store import query_collection
+
+logger = logging.getLogger(__name__)
 
 
 def build_sub_queries(risk: dict) -> list[str]:
@@ -104,8 +109,10 @@ def retrieve_for_risk(risk: dict, top_k: int | None = None) -> list[dict]:
 
     sub_queries = build_sub_queries(risk)
     if not sub_queries:
+        logger.info("retrieval skipped — no sub-queries built for risk")
         return []
 
+    t = time.perf_counter()
     best_per_root: dict[str, dict] = {}
     for sub_q in sub_queries:
         embedding = embed_query(sub_q)
@@ -119,5 +126,12 @@ def retrieve_for_risk(risk: dict, top_k: int | None = None) -> list[dict]:
         best_per_root.values(),
         key=lambda h: h["similarity_score"],
         reverse=True,
+    )
+    elapsed = time.perf_counter() - t
+    logger.info(
+        "retrieval done — %d sub-queries -> %d unique roots -> top %d "
+        "(%.0fms)",
+        len(sub_queries), len(best_per_root), min(top_k, len(ranked)),
+        elapsed * 1000,
     )
     return ranked[:top_k]

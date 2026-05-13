@@ -23,7 +23,11 @@ Run locally:
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.dependencies import (
+from src.logging_setup import configure_logging
+
+configure_logging()
+
+from src.api.dependencies import (  # noqa: E402
     check_cooldown,
     get_data_bundle,
     invalidate_data_caches,

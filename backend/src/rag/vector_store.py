@@ -5,10 +5,24 @@ Persists to data/chroma_db/ on disk so we don't rebuild on every cold start.
 We commit data/chroma_db/ to the repo so HF Spaces has it ready on first boot.
 """
 
-import chromadb
+import logging
+import os
 
-from src.config import settings
-from src.rag.chunker import NistChunk
+# Two-pronged silence for ChromaDB's PostHog telemetry:
+#   1) Set the env var before chromadb imports — disables capture entirely
+#      on systems where pydantic-settings picks it up.
+#   2) Silence the telemetry logger — kills the "capture() takes 1
+#      positional argument but 3 were given" stderr spam that surfaces
+#      via logger.error() regardless of the disabled flag (chromadb's
+#      embedded posthog client is incompatible with the installed
+#      posthog version, so every capture() call raises and gets logged).
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
+logging.getLogger("chromadb.telemetry").setLevel(logging.CRITICAL)
+
+import chromadb  # noqa: E402
+
+from src.config import settings  # noqa: E402
+from src.rag.chunker import NistChunk  # noqa: E402
 
 COLLECTION_NAME = "nist_800_53"
 
