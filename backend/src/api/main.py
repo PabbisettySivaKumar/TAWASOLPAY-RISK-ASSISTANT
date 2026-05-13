@@ -10,21 +10,32 @@ Exposes:
     POST /data/upload/{dataset}         — replace a single CSV (Scenario A)
     POST /data/upload/threat-report     — replace the threat report
     POST /data/upload/batch             — replace all 5 CSVs at once (Scenario C)
+    GET  /data/external/status          — what external sources are downloaded
+    POST /data/external/refresh/kev     — re-download CISA KEV
+    POST /data/external/refresh/nist    — re-download NIST + rebuild vector store
+    POST /data/external/refresh/all     — both
     GET  /docs                          — Swagger UI (auto-generated)
 
 Run locally:
     uvicorn src.api.main:app --reload --port 8000
 """
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.dependencies import invalidate_data_caches
+from src.api.dependencies import (
+    check_cooldown,
+    invalidate_data_caches,
+    require_api_key,
+)
 from src.api.schemas import (
     BatchUploadResponse,
     DataStatusResponse,
+    ExternalDataStatusResponse,
     HealthResponse,
+    RefreshAllResponse,
     RefreshResponse,
+    RefreshSourceResult,
     RiskDetail,
     RiskListResponse,
     UploadResponse,
@@ -36,6 +47,12 @@ from src.api.upload import (
     get_data_status,
     write_csv_atomic,
     write_threat_report_atomic,
+)
+from src.pipeline.data_refresh import (
+    get_external_status,
+    refresh_all,
+    refresh_kev,
+    refresh_nist,
 )
 
 app = FastAPI(
@@ -236,3 +253,87 @@ async def upload_single_csv(dataset: str, file: UploadFile = File(...)) -> Uploa
         message=f"{dataset} replaced. {result_dict['rows_written']} rows written.",
         result=UploadResult(**result_dict),
     )
+
+
+# ============================================================
+#  External data refresh (CISA KEV + NIST 800-53)
+#
+#  These routes are thin wrappers around src/pipeline/data_refresh.py.
+#  Same logic is used by scripts/setup_data.py — one implementation,
+#  two entry points.
+# ============================================================
+
+@app.get(
+    "/data/external/status",
+    response_model=ExternalDataStatusResponse,
+    tags=["external"],
+)
+async def external_data_status() -> ExternalDataStatusResponse:
+    """Report what's downloaded for CISA KEV and NIST 800-53, and how fresh."""
+    return ExternalDataStatusResponse(**get_external_status())
+
+
+@app.post(
+    "/data/external/refresh/kev",
+    response_model=RefreshSourceResult,
+    tags=["external"],
+    dependencies=[Depends(require_api_key)],
+)
+async def refresh_external_kev() -> RefreshSourceResult:
+    """
+    Re-download the CISA KEV catalog from GitHub.
+
+    Auth: requires X-API-Key header if API_KEY is set in environment.
+    Cooldown: 5 minutes (configurable via REFRESH_COOLDOWN_SECONDS).
+    """
+    check_cooldown("kev")
+    result = refresh_kev()
+    if not result["success"]:
+        raise HTTPException(status_code=502, detail=result)
+    return RefreshSourceResult(**result)
+
+
+@app.post(
+    "/data/external/refresh/nist",
+    response_model=RefreshSourceResult,
+    tags=["external"],
+    dependencies=[Depends(require_api_key)],
+)
+async def refresh_external_nist() -> RefreshSourceResult:
+    """
+    Re-download the NIST 800-53 catalog AND rebuild the RAG vector store.
+
+    This is slower than KEV (typically 30-90 seconds) because it also
+    re-chunks and re-embeds all controls.
+
+    Auth: requires X-API-Key header if API_KEY is set in environment.
+    Cooldown: 5 minutes (configurable via REFRESH_COOLDOWN_SECONDS).
+    """
+    check_cooldown("nist")
+    result = refresh_nist(rebuild_vector_store=True)
+    if not result["success"]:
+        raise HTTPException(status_code=502, detail=result)
+    return RefreshSourceResult(**result)
+
+
+@app.post(
+    "/data/external/refresh/all",
+    response_model=RefreshAllResponse,
+    tags=["external"],
+    dependencies=[Depends(require_api_key)],
+)
+async def refresh_external_all() -> RefreshAllResponse:
+    """
+    Refresh both external sources in one call.
+
+    Partial success allowed: if one source fails, the other still
+    completes and is reported independently. Overall `success` is
+    True only if both succeed.
+
+    Auth: requires X-API-Key header if API_KEY is set in environment.
+    Cooldown: 5 minutes per source (applied to each independently).
+    """
+    check_cooldown("kev")
+    check_cooldown("nist")
+    result = refresh_all(rebuild_vector_store=True)
+    return RefreshAllResponse(**result)

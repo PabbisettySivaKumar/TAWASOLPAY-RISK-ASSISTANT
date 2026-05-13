@@ -120,3 +120,46 @@ class DataStatusResponse(BaseModel):
     """Snapshot of what's currently in data/raw/."""
     datasets: list[DatasetStatus]
     threat_report: ThreatReportStatus
+
+
+# ---------- External data refresh schemas ----------
+
+class ExternalSourceStatus(BaseModel):
+    """Status of one external data source on disk."""
+    filename: str
+    present: bool
+    size_bytes: int
+    last_modified: Optional[str]
+    age_hours: Optional[float]
+    rows: Optional[int] = None
+
+
+class ExternalDataStatusResponse(BaseModel):
+    """Status of both external data sources."""
+    kev: ExternalSourceStatus
+    nist: ExternalSourceStatus
+
+
+class RefreshSourceResult(BaseModel):
+    """Outcome of refreshing one external source. Fields vary by source/state."""
+    success: bool
+    source: str
+    filename: Optional[str] = None
+    rows_downloaded: Optional[int] = None
+    previous_size_bytes: Optional[int] = None
+    new_size_bytes: Optional[int] = None
+    vector_store_rebuilt: Optional[bool] = None
+    chunks_indexed: Optional[int] = None
+    downloaded_at: Optional[str] = None
+    duration_seconds: Optional[float] = None
+    stage: Optional[str] = None
+    error: Optional[str] = None
+    note: Optional[str] = None
+
+
+class RefreshAllResponse(BaseModel):
+    """Result of refreshing both sources."""
+    success: bool
+    kev: RefreshSourceResult
+    nist: RefreshSourceResult
+    duration_seconds: float

@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     # We use the raw CSV from the develop branch (the repo's default branch).
     # Update schedule: weekdays during US business hours, synced within minutes of cisa.gov.
     CISA_KEV_URL: str = "https://raw.githubusercontent.com/cisagov/kev-data/develop/known_exploited_vulnerabilities.csv"
- 
+
     # NIST SP 800-53 Rev. 5 (v5.1) — official CSV derivative format from CSRC
     # Source page: https://csrc.nist.gov/projects/risk-management/sp800-53-controls/downloads
     NIST_800_53_URL: str = "https://csrc.nist.gov/CSRC/media/Projects/risk-management/800-53%20Downloads/800-53r5/NIST_SP-800-53_rev5_catalog_load.csv"
@@ -53,6 +53,15 @@ class Settings(BaseSettings):
     # ---------- Server ----------
     BACKEND_PORT: int = 8000
     LOG_LEVEL: str = "INFO"
+
+    # ---------- Auth ----------
+    # If set, refresh endpoints require X-API-Key matching this value.
+    # If empty, refresh endpoints are open (good for local dev).
+    API_KEY: str = ""
+
+    # ---------- External refresh ----------
+    # Minimum seconds between refreshes of the same source.
+    REFRESH_COOLDOWN_SECONDS: int = 300  # 5 minutes
 
     # ---------- RAG settings ----------
     CHUNK_SIZE: int = 500           # characters per chunk
