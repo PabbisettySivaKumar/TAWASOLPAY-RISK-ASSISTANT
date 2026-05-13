@@ -12,20 +12,52 @@ from src.rag.vector_store import query_collection
 
 def build_query_from_risk(risk: dict) -> str:
     """
-    Compose a natural-language query from a scored risk.
+    Compose a natural-language query from a scored risk's evidence.
 
-    Example output:
-        "Patch management for unpatched CVE-2023-1234 affecting internet-exposed
-         payment gateway with active ransomware exploitation."
+    Pulls the salient features (asset type, vuln, exposure, threat actor,
+    business service, missing controls) into a single paragraph. The
+    embedding model maps it to nearby control text in vector space.
     """
-    # TODO: implement
-    raise NotImplementedError
+    parts: list[str] = []
+
+    vuln_name = risk.get("vulnerability_name") or risk.get("cve_id") or ""
+    if vuln_name:
+        parts.append(f"Remediation guidance for {vuln_name}.")
+
+    asset_type = risk.get("asset_type")
+    if asset_type:
+        parts.append(f"Affected asset is a {asset_type}.")
+
+    if risk.get("internet_exposed"):
+        parts.append("The asset is internet-exposed.")
+
+    if risk.get("active_exploit") or risk.get("in_kev"):
+        parts.append("Exploit code is available and the CVE is actively exploited in the wild.")
+
+    if risk.get("patch_available"):
+        parts.append("A vendor patch is available; patch management and flaw remediation are required.")
+    else:
+        parts.append("No patch is yet available; compensating controls are required.")
+
+    if risk.get("threat_actor"):
+        parts.append(
+            f"Tracked threat actor {risk['threat_actor']} is running "
+            f"{'a ransomware campaign' if risk.get('ransomware') else 'an active campaign'} against this CVE."
+        )
+
+    if risk.get("business_service"):
+        parts.append(f"The asset supports the '{risk['business_service']}' business service.")
+
+    if risk.get("missing_edr"):
+        parts.append("No endpoint detection and response control is installed.")
+
+    return " ".join(parts)
 
 
-def retrieve_for_risk(risk: dict, top_k: int = None) -> list[dict]:
+def retrieve_for_risk(risk: dict, top_k: int | None = None) -> list[dict]:
     """
     Return the top-k NIST controls relevant to this risk.
-    Each result includes: control_id, control_name, excerpt, similarity_score.
+    Each result includes: control_id, control_name, family, excerpt, similarity_score.
     """
     if top_k is None:
         top_k = settings.TOP_K_RETRIEVAL

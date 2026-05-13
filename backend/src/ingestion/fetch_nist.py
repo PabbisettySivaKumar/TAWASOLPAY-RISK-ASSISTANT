@@ -36,14 +36,69 @@ def download_nist() -> Path:
     return NIST_LOCAL_PATH
 
 
+FAMILY_NAMES: dict[str, str] = {
+    "AC": "Access Control",
+    "AT": "Awareness and Training",
+    "AU": "Audit and Accountability",
+    "CA": "Assessment, Authorization, and Monitoring",
+    "CM": "Configuration Management",
+    "CP": "Contingency Planning",
+    "IA": "Identification and Authentication",
+    "IR": "Incident Response",
+    "MA": "Maintenance",
+    "MP": "Media Protection",
+    "PE": "Physical and Environmental Protection",
+    "PL": "Planning",
+    "PM": "Program Management",
+    "PS": "Personnel Security",
+    "PT": "PII Processing and Transparency",
+    "RA": "Risk Assessment",
+    "SA": "System and Services Acquisition",
+    "SC": "System and Communications Protection",
+    "SI": "System and Information Integrity",
+    "SR": "Supply Chain Risk Management",
+}
+
+
 def load_nist_controls() -> list[dict]:
     """
     Load the NIST controls CSV and return a list of dicts.
 
-    Each dict will have clean keys: id, name, statement, discussion, related, family.
-    Column names in the source CSV are mapped to these clean keys.
+    Each dict has clean keys:
+        id          e.g. "SI-2"
+        name        e.g. "Flaw Remediation"
+        statement   the normative control text
+        discussion  explanatory prose
+        related     comma-separated related control ids
+        family      e.g. "SI" -> "System and Information Integrity"
     """
-    # TODO: parse the downloaded CSV with pd.read_csv,
-    # rename columns to clean keys, return as list of dicts.
-    # Exact column names confirmed on first run of setup_data.py.
-    raise NotImplementedError
+    if not NIST_LOCAL_PATH.exists():
+        raise FileNotFoundError(
+            f"{NIST_LOCAL_PATH} not found. Run download_nist() first."
+        )
+
+    df = pd.read_csv(NIST_LOCAL_PATH)
+    df = df.loc[:, ~df.columns.str.startswith("Unnamed")]
+
+    out: list[dict] = []
+    for _, row in df.iterrows():
+        identifier = str(row.get("identifier", "")).strip()
+        if not identifier:
+            continue
+        family_prefix = identifier.split("-", 1)[0]
+        out.append({
+            "id": identifier,
+            "name": _clean(row.get("name")),
+            "statement": _clean(row.get("control_text")),
+            "discussion": _clean(row.get("discussion")),
+            "related": _clean(row.get("related")),
+            "family": FAMILY_NAMES.get(family_prefix, family_prefix),
+        })
+    return out
+
+
+def _clean(value) -> str:
+    if value is None:
+        return ""
+    s = str(value).strip()
+    return "" if s.lower() in {"nan", "none"} else s

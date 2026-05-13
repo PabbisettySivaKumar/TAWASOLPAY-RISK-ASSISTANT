@@ -25,6 +25,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.dependencies import (
     check_cooldown,
+    get_data_bundle,
     invalidate_data_caches,
     require_api_key,
 )
@@ -54,6 +55,7 @@ from src.pipeline.data_refresh import (
     refresh_kev,
     refresh_nist,
 )
+from src.pipeline.orchestrator import run_pipeline
 
 app = FastAPI(
     title="TawasolPay Risk Assistant",
@@ -88,8 +90,10 @@ async def health() -> HealthResponse:
 @app.get("/risks/top", response_model=RiskListResponse, tags=["risks"])
 async def get_top_risks() -> RiskListResponse:
     """Return the top 5 ranked risks with evidence and NIST remediation guidance."""
-    # TODO: call src.pipeline.orchestrator.run_pipeline()
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+    try:
+        return run_pipeline(top_n=5)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
 
 @app.get("/risks/{risk_id}", response_model=RiskDetail, tags=["risks"])
@@ -111,9 +115,21 @@ async def data_status() -> DataStatusResponse:
 
 @app.post("/data/refresh", response_model=RefreshResponse, tags=["data"])
 async def refresh_data() -> RefreshResponse:
-    """Force a reload of cached CSVs + rebuild the vector store."""
-    # TODO: invalidate_data_caches(), then rebuild vector store + rerun pipeline
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+    """
+    Invalidate cached CSV/KEV data so the next /risks/top call reloads from disk.
+
+    Does NOT rebuild the vector store — for that use /data/external/refresh/nist.
+    """
+    invalidate_data_caches()
+    bundle = get_data_bundle()
+    return RefreshResponse(
+        success=True,
+        message="Data caches invalidated. Next /risks/top will reload from disk.",
+        assets_loaded=len(bundle.assets),
+        vulnerabilities_loaded=len(bundle.vulnerabilities),
+        threat_intel_loaded=len(bundle.threat_intelligence),
+        nist_chunks_indexed=0,
+    )
 
 
 # NOTE: Route ORDER MATTERS in FastAPI.

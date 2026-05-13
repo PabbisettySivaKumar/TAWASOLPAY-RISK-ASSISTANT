@@ -15,13 +15,41 @@ COLLECTION_NAME = "nist_800_53"
 
 def get_client() -> chromadb.PersistentClient:
     """Return a persistent ChromaDB client rooted at data/chroma_db/."""
+    settings.CHROMA_DB_DIR.mkdir(parents=True, exist_ok=True)
     return chromadb.PersistentClient(path=str(settings.CHROMA_DB_DIR))
 
 
 def build_collection(chunks: list[NistChunk], embeddings: list[list[float]]) -> None:
     """Wipe and rebuild the collection from chunks + embeddings."""
-    # TODO: implement
-    raise NotImplementedError
+    if len(chunks) != len(embeddings):
+        raise ValueError(
+            f"chunks ({len(chunks)}) and embeddings ({len(embeddings)}) must match"
+        )
+
+    client = get_client()
+    try:
+        client.delete_collection(name=COLLECTION_NAME)
+    except (ValueError, Exception):
+        pass
+
+    collection = client.create_collection(
+        name=COLLECTION_NAME,
+        metadata={"hnsw:space": "cosine"},
+    )
+
+    collection.add(
+        ids=[c.chunk_id for c in chunks],
+        embeddings=embeddings,
+        documents=[c.text for c in chunks],
+        metadatas=[
+            {
+                "control_id": c.control_id,
+                "control_name": c.control_name,
+                "family": c.family,
+            }
+            for c in chunks
+        ],
+    )
 
 
 def open_collection():
@@ -30,7 +58,33 @@ def open_collection():
     return client.get_collection(name=COLLECTION_NAME)
 
 
-def query_collection(query_embedding: list[float], top_k: int = 3) -> dict:
-    """Query the collection and return top-k chunks with metadata + scores."""
-    # TODO: implement
-    raise NotImplementedError
+def query_collection(query_embedding: list[float], top_k: int = 3) -> list[dict]:
+    """
+    Query the collection and return top-k matches.
+
+    Each result is a dict with:
+        control_id, control_name, family, excerpt, similarity_score
+    """
+    collection = open_collection()
+    result = collection.query(
+        query_embeddings=[query_embedding],
+        n_results=top_k,
+        include=["documents", "metadatas", "distances"],
+    )
+
+    ids = (result.get("ids") or [[]])[0]
+    docs = (result.get("documents") or [[]])[0]
+    metas = (result.get("metadatas") or [[]])[0]
+    dists = (result.get("distances") or [[]])[0]
+
+    out: list[dict] = []
+    for _id, doc, meta, dist in zip(ids, docs, metas, dists):
+        meta = meta or {}
+        out.append({
+            "control_id": meta.get("control_id", _id),
+            "control_name": meta.get("control_name", ""),
+            "family": meta.get("family", ""),
+            "excerpt": doc or "",
+            "similarity_score": round(1.0 - float(dist), 4),
+        })
+    return out
