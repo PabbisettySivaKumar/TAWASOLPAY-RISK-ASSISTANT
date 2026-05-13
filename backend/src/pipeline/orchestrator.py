@@ -27,22 +27,40 @@ from src.scoring.risk_engine import ScoredRisk, get_top_n, score_all_risks
 
 def run_pipeline(top_n: int = 5) -> RiskListResponse:
     """Run the full pipeline end-to-end and return the API response."""
-    bundle = get_data_bundle()
-    kev = get_kev_catalog()
-
-    scored = score_all_risks(
-        vulnerabilities=bundle.vulnerabilities,
-        assets=bundle.assets,
-        threat_intel=bundle.threat_intelligence,
-        business_services=bundle.business_services,
-        kev_df=kev,
-    )
+    scored = _score_all()
     top = get_top_n(scored, n=top_n)
 
     entries = [_to_risk_entry(r, rank=i + 1) for i, r in enumerate(top)]
     return RiskListResponse(
         risks=entries,
         generated_at=datetime.now(timezone.utc).isoformat(),
+    )
+
+
+def get_risk_by_id(risk_id: str) -> RiskEntry | None:
+    """
+    Look up a single risk by its risk_id (== vuln_id) and return a full entry.
+
+    Returns None if no risk matches. The rank reflects this risk's position in
+    the full sorted list, not just within the top-5.
+    """
+    scored = _score_all()
+    for idx, r in enumerate(scored):
+        if r.risk_id == risk_id:
+            return _to_risk_entry(r, rank=idx + 1)
+    return None
+
+
+def _score_all() -> list:
+    """Load data + KEV, score every vulnerability, return sorted high-to-low."""
+    bundle = get_data_bundle()
+    kev = get_kev_catalog()
+    return score_all_risks(
+        vulnerabilities=bundle.vulnerabilities,
+        assets=bundle.assets,
+        threat_intel=bundle.threat_intelligence,
+        business_services=bundle.business_services,
+        kev_df=kev,
     )
 
 

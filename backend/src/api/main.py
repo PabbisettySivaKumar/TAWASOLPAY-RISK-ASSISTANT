@@ -55,7 +55,7 @@ from src.pipeline.data_refresh import (
     refresh_kev,
     refresh_nist,
 )
-from src.pipeline.orchestrator import run_pipeline
+from src.pipeline.orchestrator import get_risk_by_id, run_pipeline
 
 app = FastAPI(
     title="TawasolPay Risk Assistant",
@@ -98,9 +98,22 @@ async def get_top_risks() -> RiskListResponse:
 
 @app.get("/risks/{risk_id}", response_model=RiskDetail, tags=["risks"])
 async def get_risk_detail(risk_id: str) -> RiskDetail:
-    """Return details for a single risk by ID."""
-    # TODO: look up risk_id in cached pipeline output
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+    """
+    Return details for a single risk by its ID (vuln_id from vulnerabilities.csv).
+
+    Scores every vulnerability and returns the matching one. The `rank` field
+    reflects this risk's position in the full sorted list, so a low-priority
+    risk may have rank 50+ rather than something in the top-5.
+    """
+    try:
+        entry = get_risk_by_id(risk_id)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    if entry is None:
+        raise HTTPException(status_code=404, detail=f"Risk '{risk_id}' not found")
+
+    return RiskDetail(**entry.model_dump())
 
 
 # ============================================================
