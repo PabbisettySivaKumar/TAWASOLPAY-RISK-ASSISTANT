@@ -83,8 +83,11 @@ def fetch_risk(backend: str, risk_id: str) -> dict[str, Any] | None:
 
 
 def trigger_refresh(backend: str) -> bool:
+    # Generous timeout because the first request after an HF Space wake-up
+    # has to cold-start the container + load the embedding model before it
+    # can even reach the handler. Once warm, this call is sub-second.
     try:
-        r = requests.post(f"{backend.rstrip('/')}/data/refresh", timeout=60)
+        r = requests.post(f"{backend.rstrip('/')}/data/refresh", timeout=180)
         r.raise_for_status()
         return True
     except Exception as e:
@@ -94,7 +97,9 @@ def trigger_refresh(backend: str) -> bool:
 
 @st.cache_data(ttl=300, show_spinner=False)
 def _fetch_data_status_cached(backend: str) -> dict[str, Any]:
-    r = requests.get(f"{backend.rstrip('/')}/data/status", timeout=30)
+    # Same cold-start tolerance as the other endpoints — HF Spaces wake-up
+    # can take ~60s before this lightweight handler even runs.
+    r = requests.get(f"{backend.rstrip('/')}/data/status", timeout=180)
     r.raise_for_status()
     return r.json()
 
@@ -150,7 +155,7 @@ def upload_one(backend: str, dataset: str, filename: str, raw: bytes) -> dict[st
 def clear_all_files(backend: str) -> dict[str, Any] | None:
     """Wipe every uploaded file from data/raw/ via POST /data/clear."""
     try:
-        r = requests.post(f"{backend.rstrip('/')}/data/clear", timeout=60)
+        r = requests.post(f"{backend.rstrip('/')}/data/clear", timeout=180)
         r.raise_for_status()
         return r.json()
     except Exception as e:
