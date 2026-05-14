@@ -35,6 +35,8 @@ from src.api.dependencies import (  # noqa: E402
 )
 from src.api.schemas import (
     BatchUploadResponse,
+    ClearedItem,
+    ClearResponse,
     DataStatusResponse,
     ExternalDataStatusResponse,
     HealthResponse,
@@ -49,6 +51,7 @@ from src.api.schemas import (
 from src.api.upload import (
     DATASET_SCHEMAS,
     UploadError,
+    clear_all_files,
     get_data_status,
     write_csv_atomic,
     write_threat_report_atomic,
@@ -159,6 +162,33 @@ async def refresh_data() -> RefreshResponse:
 # Static paths (/batch, /threat-report) MUST be declared BEFORE the dynamic
 # path (/{dataset}). Otherwise FastAPI matches the dynamic route first and
 # treats "batch" or "threat-report" as a dataset name.
+
+
+# ---------- Clear: wipe all uploaded files ----------
+
+@app.post("/data/clear", response_model=ClearResponse, tags=["data"])
+async def clear_uploaded_data() -> ClearResponse:
+    """
+    Remove every CSV in data/raw/ that we own, plus the threat report.
+
+    Each file is backed up to data/backups/ first. On Hugging Face Spaces
+    this is reversible by restarting the Space — the committed files come
+    back from the image. Caches are invalidated after the clear so the next
+    /risks/top call sees the absence.
+    """
+    result = clear_all_files(include_threat_report=True)
+    invalidate_data_caches()
+    cleared_items = [ClearedItem(**item) for item in result["cleared"]]
+    return ClearResponse(
+        success=True,
+        message=(
+            f"Cleared {result['cleared_count']} files. "
+            f"{len(result['already_absent'])} already absent."
+        ),
+        cleared_count=result["cleared_count"],
+        cleared=cleared_items,
+        already_absent=result["already_absent"],
+    )
 
 
 # ---------- Upload: batch (Scenario C) ----------

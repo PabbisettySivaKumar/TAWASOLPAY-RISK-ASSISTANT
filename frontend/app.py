@@ -147,6 +147,17 @@ def upload_one(backend: str, dataset: str, filename: str, raw: bytes) -> dict[st
         return None
 
 
+def clear_all_files(backend: str) -> dict[str, Any] | None:
+    """Wipe every uploaded file from data/raw/ via POST /data/clear."""
+    try:
+        r = requests.post(f"{backend.rstrip('/')}/data/clear", timeout=60)
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        st.error(f"Clear failed: {e}")
+        return None
+
+
 def upload_batch(backend: str, files: dict[str, tuple[str, bytes]]) -> dict[str, Any] | None:
     """
     Upload all 5 CSVs (and optionally the threat report) in one call.
@@ -319,6 +330,41 @@ with tab_data:
             "Last modified": tr.get("last_modified") or "—",
         })
         st.dataframe(rows, hide_index=True, width="stretch")
+
+    st.divider()
+
+    # --- Clear all uploaded files ---
+    st.subheader("Clear uploaded files")
+    st.caption(
+        "Backs up each file to `data/backups/` then removes it from `data/raw/`. "
+        "On Hugging Face Spaces, restarting the Space brings the committed files back."
+    )
+    confirm_clear = st.checkbox(
+        "Yes, I want to delete all uploaded files",
+        key="confirm_clear",
+    )
+    if st.button(
+        "🗑️ Clear all uploaded files",
+        type="secondary",
+        disabled=not confirm_clear,
+        width="stretch",
+    ):
+        with st.spinner("Clearing…"):
+            result = clear_all_files(backend)
+        if result:
+            st.cache_data.clear()
+            st.success(result.get("message", "Files cleared."))
+            cleared = result.get("cleared") or []
+            if cleared:
+                st.markdown("**Cleared (backed up first)**")
+                for c in cleared:
+                    line = f"- `{c.get('dataset')}` — {c.get('filename')}"
+                    if c.get("backup_created"):
+                        line += f" → backup `{c['backup_created']}`"
+                    st.markdown(line)
+            absent = result.get("already_absent") or []
+            if absent:
+                st.caption(f"Already absent: {', '.join(absent)}")
 
     st.divider()
 

@@ -100,6 +100,21 @@ class BatchUploadResponse(BaseModel):
     )
 
 
+class ClearedItem(BaseModel):
+    dataset: str
+    filename: str
+    backup_created: Optional[str] = None
+
+
+class ClearResponse(BaseModel):
+    """Outcome of clearing all uploaded files."""
+    success: bool
+    message: str
+    cleared_count: int
+    cleared: list[ClearedItem]
+    already_absent: list[str]
+
+
 class DatasetStatus(BaseModel):
     dataset: str
     filename: str

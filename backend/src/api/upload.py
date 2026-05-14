@@ -184,6 +184,55 @@ def write_threat_report_atomic(raw_bytes: bytes) -> dict:
     }
 
 
+# ---------- Clear ----------
+
+def clear_all_files(include_threat_report: bool = True) -> dict:
+    """
+    Remove every CSV in data/raw/ that we own, plus optionally the threat report.
+
+    Each file is backed up to data/backups/ before deletion (via _backup_existing),
+    so this is reversible by hand if needed. Cleared state lasts until the next
+    upload — or, on HF Spaces, until the Space restarts and the committed files
+    come back from the image.
+
+    Returns a summary dict with what was cleared and what was already absent.
+    """
+    cleared: list[dict] = []
+    already_absent: list[str] = []
+
+    for dataset, spec in DATASET_SCHEMAS.items():
+        target = settings.RAW_DATA_DIR / spec["filename"]
+        if target.exists():
+            backup_path = _backup_existing(target)
+            _prune_backups(spec["filename"])
+            cleared.append({
+                "dataset": dataset,
+                "filename": spec["filename"],
+                "backup_created": backup_path.name if backup_path else None,
+            })
+        else:
+            already_absent.append(dataset)
+
+    if include_threat_report:
+        target = settings.RAW_DATA_DIR / THREAT_REPORT_FILENAME
+        if target.exists():
+            backup_path = _backup_existing(target)
+            _prune_backups(THREAT_REPORT_FILENAME)
+            cleared.append({
+                "dataset": "threat_report",
+                "filename": THREAT_REPORT_FILENAME,
+                "backup_created": backup_path.name if backup_path else None,
+            })
+        else:
+            already_absent.append("threat_report")
+
+    return {
+        "cleared_count": len(cleared),
+        "cleared": cleared,
+        "already_absent": already_absent,
+    }
+
+
 # ---------- Status ----------
 
 def get_data_status() -> dict:
