@@ -1,0 +1,37 @@
+# Virtualenvs — re-installed inside the image
+venv/
+env/
+.venv/
+
+# Python bytecode + caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local secrets + env files
+.env
+*.env.local
+
+# Editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Logs
+*.log
+logs/
+
+# Tests (not needed in image)
+tests/
+
+# Backups (committed empty, but skip any local backups)
+data/backups/*
+!data/backups/README.md
+
+# Temp + scratch
+data/temp/
+*.tmp

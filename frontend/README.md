@@ -1,6 +1,20 @@
+---
+title: TawasolPay Risk Assistant
+emoji: 🛡️
+colorFrom: red
+colorTo: gray
+sdk: streamlit
+app_file: app.py
+pinned: false
+license: mit
+short_description: Streamlit UI for the TawasolPay backend — top-N risks with NIST 800-53 guidance.
+---
+
 # TawasolPay Risk Assistant — Frontend
 
 Streamlit UI for the FastAPI backend. Renders the top-N ranked risks as scannable cards with NIST 800-53 guidance, threat intel matches, and the LLM-generated explanation.
+
+> **Deployed on Hugging Face Spaces:** this folder is pushed as-is to a Streamlit Space. The only required Space secret is `BACKEND_URL`, pointing at the deployed backend Space (e.g. `https://<your-user>-tawasolpay-backend.hf.space`).
 
 This is the "human-readable" surface the assignment asks for in Thing 3 — a technical manager can scan it and act on it without further processing.
 

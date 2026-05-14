@@ -1,6 +1,20 @@
+---
+title: TawasolPay Risk Assistant Backend
+emoji: 🛡️
+colorFrom: red
+colorTo: gray
+sdk: docker
+app_port: 7860
+pinned: false
+license: mit
+short_description: FastAPI + RAG service that ranks cyber risks and grounds remediation in NIST 800-53.
+---
+
 # TawasolPay Risk Assistant — Backend
 
 FastAPI service that ingests TawasolPay's security data, scores risks, retrieves NIST 800-53 guidance via RAG, and exposes everything over HTTP.
+
+> **Deployed on Hugging Face Spaces:** this repo is pushed as-is to a Docker Space. The `Dockerfile` runs `uvicorn` on port 7860 (HF's required port). Set `GEMINI_API_KEY` and `GROQ_API_KEY` as Space secrets — the rest works out of the box because `data/raw/`, `data/reference/`, and the pre-built `data/chroma_db/` are committed to the repo.
 
 ## Quick start (local)
 
