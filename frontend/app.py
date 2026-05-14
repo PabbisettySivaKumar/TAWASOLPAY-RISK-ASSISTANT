@@ -261,13 +261,14 @@ def render_generated_at(raw: str) -> str:
 
 
 # ---------- Sidebar ----------
+# Backend URL is config-only (no UI input): resolved from TAWASOLPAY_BACKEND_URL
+# env var, then st.secrets["BACKEND_URL"], then http://localhost:8000. Set it in
+# `.streamlit/secrets.toml` locally or in the HF Space's Secrets panel on deploy.
+backend = _default_backend()
+
 with st.sidebar:
     st.title("⚙️ Settings")
-    backend = st.text_input(
-        "Backend URL",
-        value=_default_backend(),
-        help="FastAPI service that exposes /risks/top",
-    )
+    st.caption(f"**Backend**\u2003`{backend}`")
     top_n = st.slider("Top N risks", min_value=3, max_value=10, value=5)
     if st.button("🔄 Refresh backend caches", width="stretch"):
         if trigger_refresh(backend):
