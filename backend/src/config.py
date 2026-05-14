@@ -22,7 +22,11 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GROQ_API_KEY: str = ""
 
-    LLM_PRIMARY_MODEL: str = "groq/llama-3.3-70b-versatile"
+    # Override via env vars / .env: LLM_PRIMARY_MODEL, LLM_FALLBACK_MODEL.
+    # Values below are the safety-net defaults for when nothing is configured.
+    # Use LiteLLM model identifiers (e.g. "groq/llama-3.1-8b-instant",
+    # "gemini/gemini-2.0-flash"). Empty LLM_FALLBACK_MODEL disables fallback.
+    LLM_PRIMARY_MODEL: str = "groq/llama-3.1-8b-instant"
     LLM_FALLBACK_MODEL: str = ""
 
     # ---------- Embeddings ----------

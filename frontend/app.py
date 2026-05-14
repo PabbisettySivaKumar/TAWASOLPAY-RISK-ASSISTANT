@@ -272,6 +272,7 @@ with st.sidebar:
     if st.button("🔄 Refresh backend caches", width="stretch"):
         if trigger_refresh(backend):
             st.cache_data.clear()
+            st.session_state.pop("top_data", None)
             st.success("Caches invalidated. Next request will reload from disk.")
 
     st.divider()
@@ -289,6 +290,13 @@ with st.sidebar:
 st.title("🛡️ TawasolPay Risk Assistant")
 st.caption("Top cyber risks ranked by a composite score across CVSS, internet exposure, active exploit availability, threat intel match, business criticality, and missing compensating controls. NIST 800-53 guidance is retrieved at request time via RAG — not hardcoded, not from the LLM's training data.")
 
+# Drop any previously-fetched risks when the backend URL changes. Without
+# this, switching backends would leave stale cards from the old backend on
+# screen until the user clicks Load again.
+if st.session_state.get("last_backend") != backend:
+    st.session_state.last_backend = backend
+    st.session_state.pop("top_data", None)
+
 tab_risks, tab_data = st.tabs(["📋 Top Risks", "📤 Data management"])
 
 # ---------- Tab 1: Risks ----------
@@ -302,13 +310,34 @@ with tab_risks:
         else:
             render_risk_card(risk, expand_default=True)
     else:
-        with st.spinner("Scoring risks and retrieving NIST guidance…"):
-            data = fetch_top(backend, top_n)
+        # Gate the top-risks call behind an explicit button click. /risks/top
+        # invokes the LLM once per ranked risk, so auto-firing on every rerun
+        # (URL edits, slider tweaks, tab switches) burns daily quota fast.
+        has_data = "top_data" in st.session_state
+        load_label = "🔄 Reload top risks" if has_data else "🚀 Load top risks"
+        if st.button(
+            load_label,
+            type="primary",
+            width="stretch",
+            help="Calls /risks/top on the backend — uses one LLM call per ranked risk.",
+        ):
+            with st.spinner("Scoring risks and retrieving NIST guidance…"):
+                fresh = fetch_top(backend, top_n)
+            if fresh:
+                st.session_state.top_data = fresh
+
+        data = st.session_state.get("top_data")
         if data:
             st.caption(f"Generated at **{render_generated_at(data.get('generated_at', ''))}**")
             st.subheader(f"Top {len(data['risks'])} risks")
             for i, risk in enumerate(data["risks"]):
                 render_risk_card(risk, expand_default=(i < 2))
+        else:
+            st.info(
+                "Click **Load top risks** above to fetch ranked risks from the backend. "
+                "Each ranked risk triggers one LLM call for the plain-English explanation, "
+                "so we only fetch on demand to preserve free-tier quota."
+            )
 
 # ---------- Tab 2: Data management ----------
 with tab_data:
@@ -358,6 +387,7 @@ with tab_data:
             result = clear_all_files(backend)
         if result:
             st.cache_data.clear()
+            st.session_state.pop("top_data", None)
             st.success(result.get("message", "Files cleared."))
             cleared = result.get("cleared") or []
             if cleared:
@@ -395,6 +425,7 @@ with tab_data:
             result = upload_one(backend, dataset_pick, single_file.name, raw)
         if result:
             st.cache_data.clear()
+            st.session_state.pop("top_data", None)
             st.success(result.get("message", f"{dataset_pick} replaced."))
             res = result.get("result") or {}
             details = []
@@ -438,6 +469,7 @@ with tab_data:
             result = upload_batch(backend, batch_files)
         if result:
             st.cache_data.clear()
+            st.session_state.pop("top_data", None)
             if result.get("success"):
                 st.success(result.get("message", "Batch upload complete."))
             else:

@@ -242,8 +242,8 @@ def _format_nist_excerpts(controls: list[NistControl]) -> str:
     blocks = []
     for c in controls:
         excerpt = (c.excerpt or "").strip()
-        if len(excerpt) > 700:
-            excerpt = excerpt[:700].rstrip() + "..."
+        if len(excerpt) > 250:
+            excerpt = excerpt[:250].rstrip() + "..."
         blocks.append(f"[{c.control_id}] {c.control_name}\n{excerpt}")
     return "\n\n".join(blocks)
 
