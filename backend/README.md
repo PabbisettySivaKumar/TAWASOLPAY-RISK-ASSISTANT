@@ -50,10 +50,12 @@ cp .env.example .env
 python scripts/setup_data.py
 
 # 6. Run the API server
-uvicorn src.api.main:app --reload --port 8000
+python -m uvicorn src.api.main:app --reload --port 8000
 ```
 
 Then open: `http://localhost:8000/docs` — FastAPI's interactive Swagger UI.
+
+> **Why `python -m uvicorn` and not just `uvicorn`?** The `-m` form is bound to the active venv's interpreter, so it's immune to a stray `uvicorn` binary higher on your `PATH` (e.g. a homebrew install). Plain `uvicorn ...` works too **if** `which uvicorn` resolves into your venv — but `python -m uvicorn` is bulletproof.
 
 > On Hugging Face Spaces the container serves on port **7860** instead (HF's required port). The `Dockerfile` runs `uvicorn ... --port 7860` — locally we use 8000 to avoid clashing with anything else.
 
