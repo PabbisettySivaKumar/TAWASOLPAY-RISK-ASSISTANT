@@ -92,10 +92,16 @@ async def health() -> HealthResponse:
 # ============================================================
 
 @app.get("/risks/top", response_model=RiskListResponse, tags=["risks"])
-async def get_top_risks() -> RiskListResponse:
-    """Return the top 5 ranked risks with evidence and NIST remediation guidance."""
+async def get_top_risks(top_n: int = 5) -> RiskListResponse:
+    """
+    Return the top-N ranked risks with evidence and NIST remediation guidance.
+
+    `top_n` defaults to 5 (the assignment requirement) but can be bumped via
+    query string for the frontend's drill-down slider. Clamped to 1..20.
+    """
+    top_n = max(1, min(20, top_n))
     try:
-        return run_pipeline(top_n=5)
+        return run_pipeline(top_n=top_n)
     except FileNotFoundError as e:
         raise HTTPException(status_code=503, detail=str(e))
 
