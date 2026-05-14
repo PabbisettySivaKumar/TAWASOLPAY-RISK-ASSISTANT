@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GROQ_API_KEY: str = ""
 
-    LLM_PRIMARY_MODEL: str = "gemini/gemini-2.0-flash"
-    LLM_FALLBACK_MODEL: str = "groq/llama-3.3-70b-versatile"
+    LLM_PRIMARY_MODEL: str = "groq/llama-3.3-70b-versatile"
+    LLM_FALLBACK_MODEL: str = ""
 
     # ---------- Embeddings ----------
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
