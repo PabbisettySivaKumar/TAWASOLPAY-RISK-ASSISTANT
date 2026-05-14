@@ -7,7 +7,7 @@ sdk: streamlit
 app_file: app.py
 pinned: false
 license: mit
-short_description: Streamlit UI for the TawasolPay backend — top-N risks with NIST 800-53 guidance.
+short_description: Streamlit UI — top-N cyber risks + NIST guidance.
 ---
 
 # TawasolPay Risk Assistant — Frontend

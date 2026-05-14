@@ -7,7 +7,7 @@ sdk: docker
 app_port: 7860
 pinned: false
 license: mit
-short_description: FastAPI + RAG service that ranks cyber risks and grounds remediation in NIST 800-53.
+short_description: Ranks cyber risks with NIST 800-53 RAG guidance.
 ---
 
 # TawasolPay Risk Assistant — Backend
