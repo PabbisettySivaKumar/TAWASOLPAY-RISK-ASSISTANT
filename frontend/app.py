@@ -4,16 +4,24 @@ TawasolPay Risk Assistant — Streamlit frontend.
 Reads the FastAPI backend and renders the top-N risks as scannable cards
 with NIST guidance, threat intel, and the LLM explanation.
 
-Configure the backend URL via the sidebar, st.secrets["BACKEND_URL"], or
-the TAWASOLPAY_BACKEND_URL environment variable. Default is localhost.
+Backend URL is read from the BACKEND_URL environment variable. Locally,
+that comes from `frontend/.env` (loaded via python-dotenv). On HF Spaces,
+it comes from the Space's Secrets/Variables panel.
 """
 
 import os
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import requests
 import streamlit as st
+from dotenv import load_dotenv
+
+# Load .env from the frontend folder. On HF Spaces this is a no-op (no .env
+# file is shipped) — the Space's Secrets/Variables panel injects env vars
+# directly into the process, which os.getenv() reads the same way.
+_ = load_dotenv(Path(__file__).parent / ".env")
 
 # ---------- Page config ----------
 st.set_page_config(
@@ -25,15 +33,9 @@ st.set_page_config(
 
 # ---------- Config resolution ----------
 def _default_backend() -> str:
-    env = os.getenv("TAWASOLPAY_BACKEND_URL")
-    if env:
-        return env
-    try:
-        return st.secrets.get("BACKEND_URL", "http://localhost:8000")
-    except (FileNotFoundError, st.errors.StreamlitSecretNotFoundError):
-        return "http://localhost:8000"
-    except Exception:
-        return "http://localhost:8000"
+    """Resolve the backend URL from env (loaded from .env locally, injected by
+    HF Spaces in deployment). Falls back to localhost for bare-metal dev."""
+    return os.getenv("BACKEND_URL", "https://itspsk-tawasolpay-backend.hf.space").rstrip("/")
 
 
 # ---------- API client ----------
